@@ -35,6 +35,8 @@ type server struct {
 	DSN string
 	// PostgreSQL connection
 	db *pg.DB
+	// Server secret key
+	secret string
 	// Mux router
 	router *mux.Router
 	// Compiled templates
@@ -47,12 +49,12 @@ type Server interface {
 }
 
 // Constructor for new server.
-func NewServer(port uint64, dsn string) *server {
+func NewServer(port uint64, dsn string, secret string) *server {
 	_, err := pg.ParseURL(dsn)
 	if err != nil {
 		panic(err)
 	}
-	return &server{Port: port, DSN: dsn}
+	return &server{Port: port, DSN: dsn, secret: secret}
 }
 
 // Open and check database connection.
@@ -81,10 +83,10 @@ func (s *server) createSchema() error {
 	return nil
 }
 
-// Generate hash from server secret key.
-func (s *server) getSecretHash() []byte {
+// Generates a hash with a static length suitable for CSRF middleware.
+func (s *server) genHashFromSecret() []byte {
 	h := sha256.New()
-	h.Write([]byte("hello world\n"))
+	h.Write([]byte(s.secret))
 	return h.Sum(nil)
 }
 
@@ -133,7 +135,7 @@ func (s *server) Init() {
 
 	// Setup middlewares
 	csrfMiddleware := csrf.Protect(
-		s.getSecretHash(),
+		s.genHashFromSecret(),
 		csrf.FieldName("csrf_token"),
 		csrf.SameSite(csrf.SameSiteStrictMode),
 	)
