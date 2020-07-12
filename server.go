@@ -41,6 +41,8 @@ type server struct {
 	router *mux.Router
 	// Compiled templates
 	templates map[string]*template.Template
+	// Production mode
+	isProduction bool
 }
 
 type Server interface {
@@ -49,12 +51,12 @@ type Server interface {
 }
 
 // Constructor for new server.
-func NewServer(port uint64, dsn string, secret string) *server {
+func NewServer(port uint64, dsn string, secret string, prod bool) *server {
 	_, err := pg.ParseURL(dsn)
 	if err != nil {
 		panic(err)
 	}
-	return &server{Port: port, DSN: dsn, secret: secret}
+	return &server{Port: port, DSN: dsn, secret: secret, isProduction: prod}
 }
 
 // Open and check database connection.
@@ -137,9 +139,13 @@ func (s *server) Init() {
 	csrfMiddleware := csrf.Protect(
 		s.genHashFromSecret(),
 		csrf.FieldName("csrf_token"),
-		csrf.SameSite(csrf.SameSiteStrictMode),
+		// More strict defaults used in production mode
+		csrf.Secure(s.isProduction),
 	)
 	s.router.Use(csrfMiddleware)
+	if s.isProduction {
+		s.router.Use(RedirectToHTTPSMiddleware)
+	}
 
 	// HTTP handlers
 	s.router.Handle("/", MainFormHandler(s)).Methods("GET")
@@ -154,7 +160,7 @@ func (s *server) Init() {
 	}
 }
 
-// Running server.
+// Listen server on specified port with opened database connection.
 func (s *server) Listen() error {
 	// Connecting to database
 	if err := s.connectDB(); err != nil {
@@ -167,7 +173,10 @@ func (s *server) Listen() error {
 		return err
 	}
 
-	// Listen server on specified port
+	// Running server.
+	if s.isProduction {
+		log.Println("Production mode enabled")
+	}
 	log.Printf("Starting server on :%d", s.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", s.Port), s.router))
 	return nil
