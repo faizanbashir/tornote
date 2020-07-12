@@ -9,6 +9,7 @@ Latest stable version deployed on [https://tornote.herokuapp.com/](https://torno
 ## Settings
 
 ``DATABASE_URL`` - Data source name (DSN) for PostgreSQL database.
+
 ``SECRET_KEY`` - Server secret used for [CSRF](https://en.wikipedia.org/wiki/Cross-site_request_forgery) protection.
 
 ## Security aspects
